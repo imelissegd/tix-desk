@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore } from '../store/authStore';
 
 // ── Active-aware nav link ────────────────────────────────────────────
 interface NavLinkProps {
