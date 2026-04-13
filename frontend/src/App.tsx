@@ -1,27 +1,50 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import AuthGuard from './app/shared/guards/AuthGuard';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useAuthStore } from './store/authStore';
 
-function App() {
+// Auth
+import LoginPage from './components/auth/LoginPage';
+import RegisterPage from './components/auth/RegisterPage';
+
+function LoggedInView() {
+  const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1>You are logged in</h1>
+      <button onClick={handleLogout} style={{ marginTop: '1rem' }}>
+        [Click here to log out]
+      </button>
+    </div>
+  );
+}
+
+export default function App() {
+  const user = useAuthStore((s) => s.user);
+  const isLoggedIn = !!user;
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={<div>Login Page</div>} />
-        <Route path="/register" element={<div>Register Page</div>} />
-
-        {/* Protected routes */}
-        <Route element={<AuthGuard />}>
-          <Route path="/dashboard" element={<div>Dashboard</div>} />
-          <Route path="/tickets" element={<div>Tickets</div>} />
-          <Route path="/tickets/:id" element={<div>Ticket Detail</div>} />
-          <Route path="/users" element={<div>Users</div>} />
-        </Route>
-
-        {/* Default redirect */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        {/* If NOT logged in */}
+        {!isLoggedIn ? (
+          <>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        ) : (
+          /* If logged in → show static page with logout */
+          <>
+            <Route path="*" element={<LoggedInView />} />
+          </>
+        )}
       </Routes>
     </BrowserRouter>
   );
 }
-
-export default App;
