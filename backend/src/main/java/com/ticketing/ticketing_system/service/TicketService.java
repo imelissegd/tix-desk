@@ -22,6 +22,8 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final WorkloadService workloadService;
+    private final EmailNotificationService emailNotificationService;
+
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -58,6 +60,8 @@ public class TicketService {
         log.info("Ticket {} created by {} — assigned to {}",
                 saved.getId(), caller.getEmail(),
                 assignedTo != null ? assignedTo.getEmail() : "nobody");
+
+        emailNotificationService.sendTicketCreatedNotification(saved);
 
         return TicketResponse.from(saved);
     }
@@ -161,6 +165,8 @@ public class TicketService {
         Ticket saved = ticketRepository.save(ticket);
         log.info("Ticket {} status changed from {} to {} by {}",
                 id, oldStatus, newStatus, caller.getEmail());
+
+        emailNotificationService.sendStatusChangedNotification(saved, oldStatus);
 
         return TicketResponse.from(saved);
     }
