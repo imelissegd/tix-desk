@@ -39,7 +39,11 @@ public class UserService implements UserDetailsService {
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
-                user.getRole().getAuthorities()   // ROLE_ + permission authorities
+                user.isEnabled(),  // ← enabled
+                true,              // accountNonExpired
+                true,          // credentialsNonExpired
+                true,               // accountNonLocked
+                user.getRole().getAuthorities()
         );
     }
 
@@ -100,4 +104,31 @@ public class UserService implements UserDetailsService {
                 .map(UserResponse::from)
                 .collect(Collectors.toList());
     }
+
+    // ----------------------------------------------------------------
+    // deactivateUser / reactivateUser — admin only
+    // ----------------------------------------------------------------
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public UserResponse deactivateUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        user.setEnabled(false);
+        userRepository.save(user);
+        log.info("Deactivated user id={}", id);
+        return UserResponse.from(user);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public UserResponse reactivateUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + id));
+        user.setEnabled(true);
+        userRepository.save(user);
+        log.info("Reactivated user id={}", id);
+        return UserResponse.from(user);
+    }    
+
 }

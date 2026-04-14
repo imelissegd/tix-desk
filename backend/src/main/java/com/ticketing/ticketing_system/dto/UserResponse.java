@@ -20,6 +20,7 @@ public class UserResponse {
     private String email;
     private Role role;
     private LocalDateTime createdAt;
+    private boolean enabled;
 
     public static UserResponse from(User user) {
         return UserResponse.builder()
@@ -27,6 +28,7 @@ public class UserResponse {
                 .name(user.getName())
                 .email(user.getEmail())
                 .role(user.getRole())
+                .enabled(user.isEnabled())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

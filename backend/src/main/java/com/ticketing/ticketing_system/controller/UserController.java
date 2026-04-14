@@ -45,4 +45,16 @@ public class UserController {
     ) {
         return ResponseEntity.ok(userService.updateUser(id, request, currentUser));
     }
+
+    @PatchMapping("/{id}/deactivate")
+    @Operation(summary = "Deactivate a user (ADMIN only)")
+    public ResponseEntity<UserResponse> deactivateUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.deactivateUser(id));
+    }
+
+    @PatchMapping("/{id}/reactivate")
+    @Operation(summary = "Reactivate a user (ADMIN only)")
+    public ResponseEntity<UserResponse> reactivateUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.reactivateUser(id));
+    }    
 }
