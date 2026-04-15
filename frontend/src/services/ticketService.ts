@@ -1,3 +1,4 @@
+// frontend/src/services/ticketService.ts
 import api from '../axios';
 
 export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
@@ -31,6 +32,7 @@ export interface CreateTicketRequest {
   category?: string;
 }
 
+// Returns tickets scoped to the calling user (backend filters by role)
 export const getTickets = async (): Promise<TicketResponse[]> => {
   const { data } = await api.get('/tickets/my');
   return data;
@@ -48,5 +50,14 @@ export const getTicketById = async (id: number): Promise<TicketResponse> => {
 
 export const createTicket = async (payload: CreateTicketRequest): Promise<TicketResponse> => {
   const { data } = await api.post('/tickets', payload);
+  return data;
+};
+
+// Agent: update ticket status
+export const changeStatus = async (
+  ticketId: number,
+  status: TicketStatus
+): Promise<TicketResponse> => {
+  const { data } = await api.patch(`/tickets/${ticketId}/status`, { status });
   return data;
 };
