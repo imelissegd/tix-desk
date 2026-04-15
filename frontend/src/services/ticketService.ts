@@ -61,3 +61,17 @@ export const changeStatus = async (
   const { data } = await api.patch(`/tickets/${ticketId}/status`, { status });
   return data;
 };
+
+// Admin: assign a ticket to an agent
+export const assignTicket = async (
+  ticketId: number,
+  agentId: number
+): Promise<TicketResponse> => {
+  const { data } = await api.patch(`/tickets/${ticketId}/assign`, { agentId });
+  return data;
+};
+ 
+// Admin: delete a ticket
+export const deleteTicket = async (ticketId: number): Promise<void> => {
+  await api.delete(`/tickets/${ticketId}`);
+};
