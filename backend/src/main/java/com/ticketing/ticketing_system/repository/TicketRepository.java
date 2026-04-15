@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -22,6 +23,14 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findByAssignedToAndStatusIn(User agent, List<TicketStatus> statuses);
 
     long countByAssignedToAndStatusIn(User agent, List<TicketStatus> statuses);
+
+    long countByStatus(TicketStatus status);
+
+    List<Ticket> findByResolvedAtIsNotNull();
+
+    List<Ticket> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Ticket> findByAssignedTo_Id(Long agentId);
 
     @Query("SELECT t FROM Ticket t JOIN FETCH t.createdBy JOIN FETCH t.assignedTo WHERE t.id = :id")
     java.util.Optional<Ticket> findByIdWithUsers(@Param("id") Long id);
