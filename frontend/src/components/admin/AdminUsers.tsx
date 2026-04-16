@@ -20,6 +20,66 @@ interface ModalState {
 
 const ROLES: Role[] = ["ADMIN", "AGENT", "CLIENT"];
 
+// ── Sort State ──────────────────────────────────────────────────────────────
+
+type SortKey = "name" | "email" | "role" | "enabled" | "createdAt";
+type SortDir = "asc" | "desc";
+
+function sortUsers(data: User[], key: SortKey, dir: SortDir): User[] {
+  return [...data].sort((a, b) => {
+    let av: string | number;
+    let bv: string | number;
+
+    if (key === "enabled") {
+      // true (active) sorts before false (deactivated) on asc
+      av = a.enabled ? 1 : 0;
+      bv = b.enabled ? 1 : 0;
+    } else if (key === "createdAt") {
+      av = new Date(a.createdAt).getTime();
+      bv = new Date(b.createdAt).getTime();
+    } else {
+      av = (a[key] ?? "").toString().toLowerCase();
+      bv = (b[key] ?? "").toString().toLowerCase();
+    }
+
+    if (typeof av === "string" && typeof bv === "string") {
+      return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+    }
+    return dir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
+}
+
+// ── Sort Header ─────────────────────────────────────────────────────────────
+
+function SortTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (col: SortKey) => void;
+}) {
+  const active = col === sortKey;
+  return (
+    <th
+      className={`sortable-th ${active ? "sortable-th--active" : ""}`}
+      onClick={() => onSort(col)}
+    >
+      {label}
+      <span className="sort-arrow">
+        {active ? (sortDir === "asc" ? " ↑" : " ↓") : " ↕"}
+      </span>
+    </th>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────────
+
 function UserAvatar({ name }: { name: string }) {
   return (
     <div className="user-avatar">
@@ -127,6 +187,9 @@ export default function AdminUsers() {
   const [modal, setModal] = useState<ModalState>({ type: null, userId: null });
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
   useEffect(() => {
     api.get<User[]>("/users")
       .then(({ data }) => {
@@ -154,6 +217,15 @@ export default function AdminUsers() {
   }, [users, search, roleFilter, statusFilter]);
 
   useEffect(() => { applyFilters(); }, [applyFilters]);
+
+  function handleSort(col: SortKey) {
+    if (col === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(col);
+      setSortDir("asc");
+    }
+  }
 
   function showToast(msg: string, type: "success" | "error") {
     setToast({ msg, type });
@@ -191,8 +263,9 @@ export default function AdminUsers() {
       });
   }
 
-  const totalPages = Math.ceil(filteredUsers.length / perPage);
-  const pageUsers = filteredUsers.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const sorted = sortUsers(filteredUsers, sortKey, sortDir);
+  const totalPages = Math.ceil(sorted.length / perPage);
+  const pageUsers = sorted.slice((currentPage - 1) * perPage, currentPage * perPage);
   const isFiltered = search || roleFilter || statusFilter !== "all";
   const countText = isFiltered
     ? `Showing ${filteredUsers.length} of ${users.length} user${users.length !== 1 ? "s" : ""}`
@@ -253,10 +326,11 @@ export default function AdminUsers() {
             <thead>
               <tr>
                 <th></th>
-                <th>Name / Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Created</th>
+                <SortTh label="Name" col="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Email" col="email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Role" col="role" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Status" col="enabled" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Created" col="createdAt" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 <th>Action</th>
               </tr>
             </thead>
@@ -264,10 +338,8 @@ export default function AdminUsers() {
               {pageUsers.map((user) => (
                 <tr key={user.id} className={!user.enabled ? "is-deactivated" : ""}>
                   <td><UserAvatar name={user.name} /></td>
-                  <td>
-                    <div className="user-name">{user.name}</div>
-                    <div className="user-email">{user.email}</div>
-                  </td>
+                  <td><div className="user-name">{user.name}</div></td>
+                  <td><div className="user-email">{user.email}</div></td>
                   <td><RoleBadge role={user.role} /></td>
                   <td><StatusBadge enabled={user.enabled} /></td>
                   <td className="user-date">

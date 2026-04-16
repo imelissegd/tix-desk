@@ -613,6 +613,11 @@
     color: white;
   }
 
+  .modal-btn--danger {
+    background: var(--error);
+    color: white;
+  }  
+
   /* Toast */
   .toast {
     position: fixed;
