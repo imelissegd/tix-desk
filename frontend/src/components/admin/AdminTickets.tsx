@@ -6,6 +6,7 @@ import {
   getAllTickets,
   changeStatus,
   assignTicket,
+  unassignTicket,  
   deleteTicket,
 } from '../../services/ticketService';
 import type { TicketResponse, TicketStatus, TicketPriority, UserSummary } from '../../services/ticketService';
@@ -243,13 +244,20 @@ export default function AdminTickets() {
   }
 
   async function handleAssign(ticketId: number, agentId: number | null) {
-    if (agentId === null) return;
     try {
-      const updated = await assignTicket(ticketId, agentId);
+      let updated;
+
+      if (agentId === null) {
+        updated = await unassignTicket(ticketId);
+        showToast('Ticket unassigned.', 'success');
+      } else {
+        updated = await assignTicket(ticketId, agentId);
+        showToast('Ticket assigned.', 'success');
+      }
+
       updateTicket(updated);
-      showToast('Ticket assigned.', 'success');
     } catch {
-      showToast('Failed to assign ticket.', 'error');
+      showToast('Failed to update assignment.', 'error');
     }
   }
 

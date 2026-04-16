@@ -175,18 +175,27 @@ public class TicketService {
 
     @Transactional
     public TicketResponse assignTicket(Long id, Long agentId, UserDetails userDetails) {
-        // @PreAuthorize("hasRole('ADMIN')") handles the role check in the controller
+
         Ticket ticket = resolveTicket(id);
 
         User agent = userRepository.findById(agentId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + agentId));
+                .orElseThrow(() -> new AccessDeniedException("Agent not found: " + agentId));
 
         if (agent.getRole() != Role.AGENT) {
-            throw new IllegalArgumentException(
-                    "User " + agentId + " is not an AGENT");
+            throw new AccessDeniedException("Selected user is not an agent");
         }
 
         ticket.setAssignedTo(agent);
+
+        Ticket saved = ticketRepository.save(ticket);
+        return TicketResponse.from(saved);
+    }
+
+    @Transactional
+    public TicketResponse unassignTicket(Long id, UserDetails userDetails) {
+        Ticket ticket = resolveTicket(id);
+        ticket.setAssignedTo(null);
+        log.info("Ticket {} unassigned by {}", id, userDetails.getUsername());
         return TicketResponse.from(ticketRepository.save(ticket));
     }
 

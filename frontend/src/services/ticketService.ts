@@ -71,6 +71,12 @@ export const assignTicket = async (
   return data;
 };
  
+// Admin: unassign a ticket
+export const unassignTicket = async (ticketId: number): Promise<TicketResponse> => {
+  const { data } = await api.delete(`/tickets/${ticketId}/assign`);
+  return data;
+};
+
 // Admin: delete a ticket
 export const deleteTicket = async (ticketId: number): Promise<void> => {
   await api.delete(`/tickets/${ticketId}`);

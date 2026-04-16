@@ -1,5 +1,5 @@
 package com.ticketing.ticketing_system.repository;
-
+import java.util.Optional;
 import com.ticketing.ticketing_system.model.Ticket;
 import com.ticketing.ticketing_system.model.TicketStatus;
 import com.ticketing.ticketing_system.model.User;
@@ -32,8 +32,8 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     List<Ticket> findByAssignedTo_Id(Long agentId);
 
-    @Query("SELECT t FROM Ticket t JOIN FETCH t.createdBy JOIN FETCH t.assignedTo WHERE t.id = :id")
-    java.util.Optional<Ticket> findByIdWithUsers(@Param("id") Long id);
+    @Query("SELECT t FROM Ticket t JOIN FETCH t.createdBy LEFT JOIN FETCH t.assignedTo WHERE t.id = :id")
+    Optional<Ticket> findByIdWithUsers(@Param("id") Long id);
 
     @Query("SELECT t FROM Ticket t JOIN FETCH t.createdBy LEFT JOIN FETCH t.assignedTo WHERE t.createdBy = :user")
     List<Ticket> findByCreatedByWithUsers(@Param("user") User user);

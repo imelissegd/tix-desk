@@ -87,6 +87,15 @@ public class TicketController {
                 ticketService.assignTicket(id, request.getAgentId(), userDetails));
     }
 
+    @DeleteMapping("/{id}/assign")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Unassign ticket (ADMIN only)")
+    public ResponseEntity<TicketResponse> unassignTicket(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ticketService.unassignTicket(id, userDetails));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete a ticket (ADMIN only)")
