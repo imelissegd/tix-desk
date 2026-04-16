@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-
+import { useLocation } from "react-router-dom";
 import api from "../../axios";
 
 type Role = "ADMIN" | "AGENT" | "CLIENT";
@@ -176,6 +176,7 @@ function ConfirmModal({
 }
 
 export default function AdminUsers() {
+  const location = useLocation();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [usersMap, setUsersMap] = useState<Record<number, User>>({});
@@ -200,6 +201,17 @@ export default function AdminUsers() {
       })
       .catch(() => showToast("Could not load users.", "error"));
   }, []);
+
+  useEffect(() => {
+    const state = location.state as { roleFilter?: string } | null;
+    if (state?.roleFilter !== undefined) {
+      setRoleFilter(state.roleFilter);
+      setSearch("");
+      setCurrentPage(1);
+      // Clear state so a manual page refresh doesn't re-apply the filter
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
 
   const applyFilters = useCallback(() => {
     const q = search.trim().toLowerCase();

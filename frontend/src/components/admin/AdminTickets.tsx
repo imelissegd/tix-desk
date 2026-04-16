@@ -1,5 +1,6 @@
 // frontend/src/components/admin/AdminTickets.tsx
 import { useEffect, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import api from '../../axios';
 import {
   getAllTickets,
@@ -154,6 +155,8 @@ function StatusSelect({
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function AdminTickets() {
+  const location = useLocation();
+
   const [tickets, setTickets] = useState<TicketResponse[]>([]);
   const [filtered, setFiltered] = useState<TicketResponse[]>([]);
   const [agents, setAgents] = useState<AgentOption[]>([]);
@@ -165,6 +168,16 @@ export default function AdminTickets() {
 
   const [perPage, setPerPage] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Apply status filter from dashboard navigation
+  useEffect(() => {
+    const state = location.state as { statusFilter?: string } | null;
+    if (state?.statusFilter !== undefined) {
+      setStatusFilter(state.statusFilter ?? '');
+      setCurrentPage(1);
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   const [selectedTicket, setSelectedTicket] = useState<TicketResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TicketResponse | null>(null);

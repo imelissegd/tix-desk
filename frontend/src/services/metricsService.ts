@@ -5,8 +5,9 @@ import type { TicketStatus } from './ticketService';
 export interface DashboardSummary {
   ticketsByStatus: Record<TicketStatus, number>;
   avgResolutionHours: number;
-  totalAgents: number;
   totalTickets: number;
+  totalUsers: number;
+  usersByRole: Record<string, number>; // ADMIN | AGENT | CLIENT
 }
 
 export interface DailyVolume {

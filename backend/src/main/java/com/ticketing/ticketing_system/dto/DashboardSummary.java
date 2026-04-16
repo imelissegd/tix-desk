@@ -1,10 +1,12 @@
 package com.ticketing.ticketing_system.dto;
 
+import java.util.Map;
+
+import com.ticketing.ticketing_system.model.Role;
 import com.ticketing.ticketing_system.model.TicketStatus;
+
 import lombok.Builder;
 import lombok.Getter;
-
-import java.util.Map;
 
 @Getter
 @Builder
@@ -12,6 +14,7 @@ public class DashboardSummary {
 
     private Map<TicketStatus, Long> ticketsByStatus;
     private double avgResolutionHours;
-    private int totalAgents;
     private long totalTickets;
+    private long totalUsers;
+    private Map<Role, Long> usersByRole;
 }

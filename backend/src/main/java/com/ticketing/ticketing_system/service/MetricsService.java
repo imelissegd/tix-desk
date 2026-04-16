@@ -1,5 +1,17 @@
 package com.ticketing.ticketing_system.service;
 
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.ticketing.ticketing_system.dto.AgentPerformanceRequest;
 import com.ticketing.ticketing_system.dto.DailyVolume;
 import com.ticketing.ticketing_system.dto.DashboardSummary;
@@ -9,19 +21,9 @@ import com.ticketing.ticketing_system.model.TicketStatus;
 import com.ticketing.ticketing_system.model.User;
 import com.ticketing.ticketing_system.repository.TicketRepository;
 import com.ticketing.ticketing_system.repository.UserRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -121,18 +123,28 @@ public class MetricsService {
     }
 
     // ── dashboard summary ─────────────────────────────────────────────────────
+        public DashboardSummary getDashboardSummary() {
 
-    public DashboardSummary getDashboardSummary() {
         Map<TicketStatus, Long> byStatus = getTicketCountsByStatus();
 
-        long totalTickets = byStatus.values().stream().mapToLong(Long::longValue).sum();
-        int totalAgents   = userRepository.findByRole(Role.AGENT).size();
+        long totalTickets = ticketRepository.count();
+
+        List<User> users = userRepository.findAll();
+
+        long totalUsers = users.size();
+
+        Map<Role, Long> usersByRole = users.stream()
+                .collect(Collectors.groupingBy(
+                        User::getRole,
+                        Collectors.counting()
+                ));
 
         return DashboardSummary.builder()
                 .ticketsByStatus(byStatus)
                 .avgResolutionHours(getAverageResolutionTimeHours())
-                .totalAgents(totalAgents)
                 .totalTickets(totalTickets)
+                .totalUsers(totalUsers)
+                .usersByRole(usersByRole)
                 .build();
-    }
+        }
 }

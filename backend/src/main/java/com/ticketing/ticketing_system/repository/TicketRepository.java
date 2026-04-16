@@ -43,4 +43,7 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     @Query("SELECT t FROM Ticket t JOIN FETCH t.createdBy LEFT JOIN FETCH t.assignedTo")
     List<Ticket> findAllWithUsers();
+
+    @Query("SELECT u.role, COUNT(u) FROM User u GROUP BY u.role")
+    List<Object[]> countUsersByRole();
 }
