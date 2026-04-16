@@ -301,7 +301,7 @@ export default function AdminTickets() {
           <input
             type="text"
             className="admin-users-search-input"
-            placeholder="Search by title, ID, or requester…"
+            placeholder="Search by title, ID, or requester's name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -352,13 +352,13 @@ export default function AdminTickets() {
           <table className="admin-users-table admin-tickets-table">
             <thead>
               <tr>
-                <th>#ID</th>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Priority</th>
+                <th>ID</th>
                 <th>Requester</th>
-                <th>Assign To</th>
-                <th>Created</th>
+                <th>Ticket</th>
+                <th>Priority</th>
+                <th>Date Created</th>                
+                <th>Assigned Agent</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -367,27 +367,20 @@ export default function AdminTickets() {
                 <tr
                   key={ticket.id}
                   className="admin-ticket-row"
-                  onClick={() => setSelectedTicket(ticket)}
                 >
-                  <td className="ticket-id-cell">#{ticket.id}</td>
+                  <td className="ticket-id-cell">{ticket.id}</td>
+                  <td>
+                    <div className="user-name">{ticket.createdBy?.name ?? '—'}</div>
+                    <div className="user-email">{ticket.createdBy?.email ?? ''}</div>
+                  </td>
                   <td className="ticket-title-cell">
                     <span className="ticket-title-text">{ticket.title}</span>
                     {ticket.category && (
                       <span className="ticket-category">{ticket.category}</span>
                     )}
-                  </td>
-                  <td>
-                    <StatusSelect ticket={ticket} onStatusChange={handleStatusChange} />
-                  </td>
+                  </td>           
                   <td>
                     <PriorityBadge priority={ticket.priority} />
-                  </td>
-                  <td>
-                    <div className="user-name">{ticket.createdBy?.name ?? '—'}</div>
-                    <div className="user-email">{ticket.createdBy?.email ?? ''}</div>
-                  </td>
-                  <td>
-                    <AssignSelect ticket={ticket} agents={agents} onAssign={handleAssign} />
                   </td>
                   <td className="user-date">
                     {new Date(ticket.createdAt).toLocaleDateString('en-US', {
@@ -397,7 +390,19 @@ export default function AdminTickets() {
                     })}
                   </td>
                   <td>
+                    <AssignSelect ticket={ticket} agents={agents} onAssign={handleAssign} />
+                  </td>                                                      
+                  <td>
+                    <StatusSelect ticket={ticket} onStatusChange={handleStatusChange} />
+                  </td>
+                  <td>
                     <div className="row-actions">
+                      <button
+                        className="tbl-btn tbl-btn--purple"
+                        onClick={() => setSelectedTicket(ticket)}
+                      >
+                        View
+                      </button>
                       <button
                         className="tbl-btn tbl-btn--danger"
                         onClick={(e) => {
