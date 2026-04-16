@@ -39,6 +39,91 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
   CRITICAL: 'Critical',
 };
 
+// Priority sort order (lower index = higher priority)
+const PRIORITY_ORDER: Record<TicketPriority, number> = {
+  CRITICAL: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+};
+
+// Status sort order
+const STATUS_ORDER: Record<TicketStatus, number> = {
+  OPEN: 0,
+  IN_PROGRESS: 1,
+  RESOLVED: 2,
+  CLOSED: 3,
+};
+
+// ── Sort State ──────────────────────────────────────────────────────────────
+
+type SortKey = 'id' | 'createdBy' | 'title' | 'priority' | 'createdAt' | 'assignedTo' | 'status';
+type SortDir = 'asc' | 'desc';
+
+function sortTickets(data: TicketResponse[], key: SortKey, dir: SortDir): TicketResponse[] {
+  return [...data].sort((a, b) => {
+    let av: string | number;
+    let bv: string | number;
+
+    if (key === 'id') {
+      av = a.id;
+      bv = b.id;
+    } else if (key === 'createdAt') {
+      av = new Date(a.createdAt).getTime();
+      bv = new Date(b.createdAt).getTime();
+    } else if (key === 'priority') {
+      av = PRIORITY_ORDER[a.priority];
+      bv = PRIORITY_ORDER[b.priority];
+    } else if (key === 'status') {
+      av = STATUS_ORDER[a.status];
+      bv = STATUS_ORDER[b.status];
+    } else if (key === 'createdBy') {
+      av = (a.createdBy?.name ?? '').toLowerCase();
+      bv = (b.createdBy?.name ?? '').toLowerCase();
+    } else if (key === 'assignedTo') {
+      av = (a.assignedTo?.name ?? '').toLowerCase();
+      bv = (b.assignedTo?.name ?? '').toLowerCase();
+    } else {
+      av = (a[key] ?? '').toString().toLowerCase();
+      bv = (b[key] ?? '').toString().toLowerCase();
+    }
+
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    }
+    return dir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
+}
+
+// ── Sort Header ─────────────────────────────────────────────────────────────
+
+function SortTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (col: SortKey) => void;
+}) {
+  const active = col === sortKey;
+  return (
+    <th
+      className={`sortable-th ${active ? 'sortable-th--active' : ''}`}
+      onClick={() => onSort(col)}
+    >
+      {label}
+      <span className="sort-arrow">
+        {active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+      </span>
+    </th>
+  );
+}
+
 // ── Badge Components ───────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: TicketStatus }) {
@@ -170,6 +255,9 @@ export default function AdminTickets() {
   const [perPage, setPerPage] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
   // Apply status filter from dashboard navigation
   useEffect(() => {
     const state = location.state as { statusFilter?: string } | null;
@@ -202,7 +290,7 @@ export default function AdminTickets() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Filtering
+  // Filtering (sorting is handled separately after filtering)
   const applyFilters = useCallback(() => {
     const q = search.trim().toLowerCase();
     const result = tickets.filter((t) => {
@@ -220,13 +308,20 @@ export default function AdminTickets() {
           : String(t.assignedTo?.id) === agentFilter);
       return matchSearch && matchStatus && matchPriority && matchAgent;
     });
-    // Sort: newest first
-    result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setFiltered(result);
     setCurrentPage(1);
   }, [tickets, search, statusFilter, priorityFilter, agentFilter]);
 
   useEffect(() => { applyFilters(); }, [applyFilters]);
+
+  function handleSort(col: SortKey) {
+    if (col === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(col);
+      setSortDir('asc');
+    }
+  }
 
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type });
@@ -283,9 +378,10 @@ export default function AdminTickets() {
     }
   }
 
-  // Pagination
-  const totalPages = Math.ceil(filtered.length / perPage);
-  const pageTickets = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
+  // Pagination (sort is applied after filtering, before slicing)
+  const sorted = sortTickets(filtered, sortKey, sortDir);
+  const totalPages = Math.ceil(sorted.length / perPage);
+  const pageTickets = sorted.slice((currentPage - 1) * perPage, currentPage * perPage);
 
   const isFiltered = search || statusFilter || priorityFilter || agentFilter;
   const countText = isFiltered
@@ -361,13 +457,13 @@ export default function AdminTickets() {
           <table className="admin-users-table admin-tickets-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Requester</th>
-                <th>Ticket</th>
-                <th>Priority</th>
-                <th>Date Created</th>                
-                <th>Assigned Agent</th>
-                <th>Status</th>
+                <SortTh label="ID" col="id" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Requester" col="createdBy" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Ticket" col="title" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Priority" col="priority" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Date Created" col="createdAt" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Assigned Agent" col="assignedTo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 <th>Actions</th>
               </tr>
             </thead>
