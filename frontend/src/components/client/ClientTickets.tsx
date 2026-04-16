@@ -1,165 +1,319 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getTickets, type TicketResponse } from '../../services/ticketService';
-import { StatusBadge, PriorityBadge } from '../StatusBadge';
+import { getTickets } from '../../services/ticketService';
+import type { TicketResponse, TicketStatus, TicketPriority } from '../../services/ticketService';
 import TicketDetailPanel from '../TicketDetailPanel';
 import { useAuthStore } from '../../store/authStore';
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const STATUS_LABELS: Record<TicketStatus, string> = {
+  OPEN: 'Open',
+  IN_PROGRESS: 'In Progress',
+  RESOLVED: 'Resolved',
+  CLOSED: 'Closed',
+};
+
+const PRIORITY_LABELS: Record<TicketPriority, string> = {
+  LOW: 'Low',
+  MEDIUM: 'Medium',
+  HIGH: 'High',
+  CRITICAL: 'Critical',
+};
+
+const PRIORITY_ORDER: Record<TicketPriority, number> = {
+  CRITICAL: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+};
+
+const STATUS_ORDER: Record<TicketStatus, number> = {
+  OPEN: 0,
+  IN_PROGRESS: 1,
+  RESOLVED: 2,
+  CLOSED: 3,
+};
+
+// ── Sort ───────────────────────────────────────────────────────────────────
+
+type SortKey = 'id' | 'title' | 'priority' | 'createdAt' | 'assignedTo' | 'status';
+type SortDir = 'asc' | 'desc';
+
+function sortTickets(data: TicketResponse[], key: SortKey, dir: SortDir): TicketResponse[] {
+  return [...data].sort((a, b) => {
+    let av: string | number;
+    let bv: string | number;
+
+    if (key === 'id') {
+      av = a.id;
+      bv = b.id;
+    } else if (key === 'createdAt') {
+      av = new Date(a.createdAt).getTime();
+      bv = new Date(b.createdAt).getTime();
+    } else if (key === 'priority') {
+      av = PRIORITY_ORDER[a.priority];
+      bv = PRIORITY_ORDER[b.priority];
+    } else if (key === 'status') {
+      av = STATUS_ORDER[a.status];
+      bv = STATUS_ORDER[b.status];
+    } else if (key === 'assignedTo') {
+      av = (a.assignedTo?.name ?? '').toLowerCase();
+      bv = (b.assignedTo?.name ?? '').toLowerCase();
+    } else {
+      av = (a[key] ?? '').toString().toLowerCase();
+      bv = (b[key] ?? '').toString().toLowerCase();
+    }
+
+    if (typeof av === 'string' && typeof bv === 'string') {
+      return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    }
+    return dir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
   });
 }
 
-function SkeletonRow() {
+// ── Sort Header ────────────────────────────────────────────────────────────
+
+function SortTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (col: SortKey) => void;
+}) {
+  const active = col === sortKey;
   return (
-    <tr className="animate-pulse">
-      {[1, 2, 3, 4, 5].map(i => (
-        <td key={i} className="px-4 py-3.5">
-          <div className="h-4 bg-surface-200 rounded w-3/4" />
-        </td>
-      ))}
-    </tr>
+    <th
+      className={`sortable-th ${active ? 'sortable-th--active' : ''}`}
+      onClick={() => onSort(col)}
+    >
+      {label}
+      <span className="sort-arrow">
+        {active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
+      </span>
+    </th>
   );
 }
 
-export default function ClientTickets() {
-  const [selected, setSelected] = useState<TicketResponse | null>(null);
+// ── Badges ─────────────────────────────────────────────────────────────────
 
+function StatusBadge({ status }: { status: TicketStatus }) {
+  return (
+    <span className={`status-badge status-badge--${status.toLowerCase().replace('_', '-')}`}>
+      {STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+function PriorityBadge({ priority }: { priority: TicketPriority }) {
+  return (
+    <span className={`priority-badge priority-badge--${priority.toLowerCase()}`}>
+      {PRIORITY_LABELS[priority]}
+    </span>
+  );
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────
+
+export default function ClientTickets() {
   const { user } = useAuthStore();
-  
+
   const { data: tickets = [], isLoading, isError } = useQuery({
     queryKey: ['tickets', user?.userId],
     queryFn: getTickets,
   });
 
+  const [selected, setSelected] = useState<TicketResponse | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('');
+  const [perPage, setPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  function handleSort(col: SortKey) {
+    if (col === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(col);
+      setSortDir('asc');
+    }
+  }
+
+  const filtered = useCallback(() => {
+    const q = search.trim().toLowerCase();
+    return tickets.filter((t) => {
+      const matchSearch =
+        !q ||
+        t.title.toLowerCase().includes(q) ||
+        String(t.id).includes(q);
+      const matchStatus = !statusFilter || t.status === statusFilter;
+      const matchPriority = !priorityFilter || t.priority === priorityFilter;
+      return matchSearch && matchStatus && matchPriority;
+    });
+  }, [tickets, search, statusFilter, priorityFilter]);
+
+  const filteredTickets = filtered();
+  const sorted = sortTickets(filteredTickets, sortKey, sortDir);
+  const totalPages = Math.ceil(sorted.length / perPage);
+  const pageTickets = sorted.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  const isFiltered = search || statusFilter || priorityFilter;
+  const countText = isFiltered
+    ? `Showing ${filteredTickets.length} of ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}`
+    : `${tickets.length} ticket${tickets.length !== 1 ? 's' : ''} total`;
+
   return (
-    <div className="min-h-screen bg-surface-50">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+    <div className="main-content">
+      {/* Header */}
+      <div className="admin-users-header">
+        <h1 className="admin-users-title">My Tickets</h1>
+        <Link to="/client/tickets/new" className="admin-users-add-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Ticket
+        </Link>
+      </div>
 
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 font-display">My Tickets</h1>
-            <p className="text-sm text-gray-500 font-body mt-1">
-              Track the status of your support requests
-            </p>
-          </div>
-          <Link
-            to="/client/tickets/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium font-body rounded-xl transition-colors shadow-sm"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Ticket
-          </Link>
+      {/* Controls */}
+      <div className="admin-users-controls">
+        <div className="admin-users-search-wrap">
+          <svg className="admin-users-search-icon" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            className="admin-users-search-input"
+            placeholder="Search by title or ID…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+          />
         </div>
 
-        {/* Table card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-surface-200 overflow-hidden">
-          {isError ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-3">
-                <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-sm font-medium text-gray-700 font-body">Failed to load tickets</p>
-              <p className="text-xs text-gray-400 font-body mt-1">Please try refreshing the page</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-surface-100 bg-surface-50">
-                    {['Title', 'Priority', 'Status', 'Agent Assigned', 'Reporter', 'Created'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-body uppercase tracking-wider">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-100">
-                  {isLoading ? (
-                    <>{[1, 2, 3, 4].map(i => <SkeletonRow key={i} />)}</>
-                  ) : tickets.length === 0 ? (
-                    <tr>
-                      <td colSpan={5}>
-                        <div className="flex flex-col items-center justify-center py-20 text-center">
-                          <div className="w-14 h-14 rounded-2xl bg-surface-100 flex items-center justify-center mb-4">
-                            <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <p className="text-sm font-semibold text-gray-700 font-body">No tickets yet</p>
-                          <p className="text-xs text-gray-400 font-body mt-1 mb-4">Submit your first support request to get started</p>
-                          <Link
-                            to="/client/tickets/new"
-                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-brand-600 text-white text-xs font-medium font-body rounded-lg hover:bg-brand-700 transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Create Ticket
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    tickets.map((ticket) => (
-                      <tr
-                        key={ticket.id}
-                        onClick={() => setSelected(ticket)}
-                        className="hover:bg-surface-50 cursor-pointer transition-colors group"
-                      >
-                        <td className="px-4 py-3.5">
-                          <p className="font-medium text-gray-900 font-body group-hover:text-brand-600 transition-colors line-clamp-1">
-                            {ticket.title}
-                          </p>
-                          {ticket.category && (
-                            <p className="text-xs text-gray-400 font-body mt-0.5">{ticket.category}</p>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <PriorityBadge priority={ticket.priority} />
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <StatusBadge status={ticket.status} />
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <p className="text-gray-600 font-body">
-                            {ticket.assignedTo?.name ?? (
-                              <span className="text-gray-400 italic">Unassigned</span>
-                            )}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <p className="text-gray-600 font-body">
-                            {ticket.createdBy?.name ?? (
-                              <span className="text-gray-400 italic">Unassigned</span>
-                            )}
-                          </p>
-                        </td>                        
-                        <td className="px-4 py-3.5">
-                          <p className="text-gray-500 font-body">{formatDate(ticket.createdAt)}</p>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <select className="admin-users-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}>
+          <option value="">All statuses</option>
+          {(Object.keys(STATUS_LABELS) as TicketStatus[]).map((s) => (
+            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+          ))}
+        </select>
 
-        {tickets.length > 0 && !isLoading && (
-          <p className="text-xs text-gray-400 font-body mt-3 text-right">
-            {tickets.length} ticket{tickets.length !== 1 ? 's' : ''} total
+        <select className="admin-users-select" value={priorityFilter} onChange={(e) => { setPriorityFilter(e.target.value); setCurrentPage(1); }}>
+          <option value="">All priorities</option>
+          {(Object.keys(PRIORITY_LABELS) as TicketPriority[]).map((p) => (
+            <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+          ))}
+        </select>
+
+        <select className="admin-users-select" value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setCurrentPage(1); }}>
+          <option value={10}>10 per page</option>
+          <option value={20}>20 per page</option>
+          <option value={50}>50 per page</option>
+        </select>
+      </div>
+
+      {!isLoading && !isError && <p className="admin-users-count">{countText}</p>}
+
+      {/* Table */}
+      <div className="admin-users-table-wrap">
+        {isError ? (
+          <p className="admin-users-empty">Failed to load tickets. Please try refreshing.</p>
+        ) : isLoading ? (
+          <p className="admin-users-empty">Loading tickets…</p>
+        ) : filteredTickets.length === 0 ? (
+          <p className="admin-users-empty">
+            {tickets.length === 0 ? 'No tickets yet.' : 'No tickets match your filters.'}
           </p>
+        ) : (
+          <table className="admin-users-table admin-tickets-table">
+            <thead>
+              <tr>
+                <SortTh label="ID" col="id" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Ticket" col="title" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Priority" col="priority" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Date Created" col="createdAt" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Assigned Agent" col="assignedTo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortTh label="Status" col="status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageTickets.map((ticket) => (
+                <tr key={ticket.id} className="admin-ticket-row">
+                  <td className="ticket-id-cell">{ticket.id}</td>
+                  <td className="ticket-title-cell">
+                    <span className="ticket-title-text">{ticket.title}</span>
+                    {ticket.category && (
+                      <span className="ticket-category">{ticket.category}</span>
+                    )}
+                  </td>
+                  <td>
+                    <PriorityBadge priority={ticket.priority} />
+                  </td>
+                  <td className="user-date">
+                    {new Date(ticket.createdAt).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </td>
+                  <td>
+                    <span className="admin-readonly-cell">
+                      {ticket.assignedTo?.name ?? <em className="admin-readonly-unassigned">Unassigned</em>}
+                    </span>
+                  </td>
+                  <td>
+                    <StatusBadge status={ticket.status} />
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      <button
+                        className="tbl-btn tbl-btn--purple"
+                        onClick={() => setSelected(ticket)}
+                      >
+                        View
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="admin-users-pagination">
+          <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+            ← Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button
+              key={p}
+              className={`pagination-btn ${p === currentPage ? 'pagination-btn--active' : ''}`}
+              onClick={() => setCurrentPage(p)}
+            >
+              {p}
+            </button>
+          ))}
+          <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+            Next →
+          </button>
+        </div>
+      )}
 
       {/* Detail panel */}
       <TicketDetailPanel ticket={selected} onClose={() => setSelected(null)} />
