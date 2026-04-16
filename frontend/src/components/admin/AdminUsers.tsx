@@ -151,7 +151,7 @@ export default function AdminUsers() {
     });
     setFilteredUsers(result);
     setCurrentPage(1);
-  }, [users, search, roleFilter]);
+  }, [users, search, roleFilter, statusFilter]);
 
   useEffect(() => { applyFilters(); }, [applyFilters]);
 
@@ -257,7 +257,7 @@ export default function AdminUsers() {
                 <th>Role</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th>Actions</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -279,7 +279,7 @@ export default function AdminUsers() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <TblBtn onClick={() => (window.location.href = `/admin/users/edit/${user.id}`)}>Edit</TblBtn>
+                      {/* <TblBtn onClick={() => (window.location.href = `/admin/users/edit/${user.id}`)}>Edit</TblBtn> */}
                       {user.enabled
                         ? <TblBtn variant="danger" onClick={() => setModal({ type: "deactivate", userId: user.id })}>Deactivate</TblBtn>
                         : <TblBtn variant="purple" onClick={() => setModal({ type: "reactivate", userId: user.id })}>Reactivate</TblBtn>}
