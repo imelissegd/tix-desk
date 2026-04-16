@@ -181,6 +181,7 @@ export default function AdminTickets() {
 
   const [selectedTicket, setSelectedTicket] = useState<TicketResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TicketResponse | null>(null);
+  const [editingRowId, setEditingRowId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -390,10 +391,20 @@ export default function AdminTickets() {
                     })}
                   </td>
                   <td>
-                    <AssignSelect ticket={ticket} agents={agents} onAssign={handleAssign} />
-                  </td>                                                      
+                    {editingRowId === ticket.id ? (
+                      <AssignSelect ticket={ticket} agents={agents} onAssign={handleAssign} />
+                    ) : (
+                      <span className="admin-readonly-cell">
+                        {ticket.assignedTo?.name ?? <em className="admin-readonly-unassigned">Unassigned</em>}
+                      </span>
+                    )}
+                  </td>
                   <td>
-                    <StatusSelect ticket={ticket} onStatusChange={handleStatusChange} />
+                    {editingRowId === ticket.id ? (
+                      <StatusSelect ticket={ticket} onStatusChange={handleStatusChange} />
+                    ) : (
+                      <StatusBadge status={ticket.status} />
+                    )}
                   </td>
                   <td>
                     <div className="row-actions">
@@ -403,6 +414,27 @@ export default function AdminTickets() {
                       >
                         View
                       </button>
+                      {editingRowId === ticket.id ? (
+                        <button
+                          className="tbl-btn tbl-btn--save"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingRowId(null);
+                          }}
+                        >
+                          Save
+                        </button>
+                      ) : (
+                        <button
+                          className="tbl-btn tbl-btn--edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingRowId(ticket.id);
+                          }}
+                        >
+                          Edit
+                        </button>
+                      )}
                       <button
                         className="tbl-btn tbl-btn--danger"
                         onClick={(e) => {
