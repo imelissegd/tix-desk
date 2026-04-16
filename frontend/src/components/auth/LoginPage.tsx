@@ -29,7 +29,7 @@ export default function LoginPage() {
         res.accessToken,
         res.refreshToken
       );
-      navigate(res.role === 'ADMIN' ? '/admin/users' : '/dashboard', { replace: true });
+      navigate('/', { replace: true });
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
